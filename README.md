@@ -249,7 +249,7 @@ samtools consensus --threads 4 \
                    odir/id.bam
 ```
 
-### Quantify SNVs
+### 6. Quantify SNVs
 
 Use LoFreq to make a detailed table of consensus and sub-consensus SNVs.
 
