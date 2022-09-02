@@ -245,7 +245,7 @@ echo ""
 mesg "STEP 5: ASSEMBLE CONSENSUS"
 
 # consensus with samtools
-CMD="$SAMTOOLS consensus --use-qual --min-depth 10 --call-fract 0.5 --output '$VAR-tmp.fa' '$VAR.bam'"
+CMD="$SAMTOOLS consensus --threads 4 --use-qual --min-depth 10 --call-fract 0.5 --output '$VAR-tmp.fa' '$VAR.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Consensus"
