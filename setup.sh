@@ -20,8 +20,9 @@ checkcmd () {
 }
 
 # pre-set variables
-BDIR="$(dirname "$0")/pipeline/bowtie"
-SDIR="$(dirname "$0")/pipeline/samtools"
+BDIR="pipeline/bowtie"
+SDIR="pipeline/samtools"
+LDIR="pipeline/lofreq"
 
 # help message
 HELP="usage: qsub -P PROJECT -N JOBNAME $0 -f FASTA -b BOWTIE
@@ -111,40 +112,32 @@ then
 fi
 
 # quick check for samtools; if installed skip this step
-if [ -f "$SDIR/bin/samtools" ]
+if [ ! -f "$SDIR/bin/samtools" ]
 then
-  mesg "Setup complete!"
-  module list
-  exit 0
+  # only print message once we know we need to install samtools from source
+  mesg "STEP 2: INSTALL SAMTOOLS"
+  mesg "Installing SAMtools v1.15.1 from source"
+
+  # get the absolute path for installation
+  PFIX="$(pwd)/$SDIR"
+
+  # pull tarball, expand, and enter directory
+  wget --quiet "https://github.com/samtools/samtools/releases/download/1.15.1/samtools-1.15.1.tar.bz2"
+  tar -xf "samtools-1.15.1.tar.bz2"
+  rm "samtools-1.15.1.tar.bz2"
+  cd "samtools-1.15.1"
+
+  # configure and install
+  ./configure --quiet --prefix "$PFIX"
+  make --quiet
+  make install --quiet
+  checkcmd "SAMtools installation"
+
+  # clean up by removing samtools directory
+  cd ..
+  rm -r "samtools-1.15.1"
+  cd "$CDIR"
 fi
-
-# only print message once we know we need to install samtools
-mesg "STEP 2: INSTALL SAMTOOLS"
-
-# if not detected, install from source
-mesg "Installing SAMtools v1.15.1 from source"
-
-# sanity check; cd to project directory to get absolute path
-CDIR="$(pwd)" # so we can return once we're done
-cd "$(dirname "$0")"
-PFIX="$(pwd)/pipeline/samtools"
-
-# pull tarball, expand, and enter directory
-wget --quiet "https://github.com/samtools/samtools/releases/download/1.15.1/samtools-1.15.1.tar.bz2"
-tar -xf "samtools-1.15.1.tar.bz2"
-rm "samtools-1.15.1.tar.bz2"
-cd "samtools-1.15.1"
-
-# configure and install
-./configure --quiet --prefix "$PFIX"
-make --quiet
-make install --quiet
-checkcmd "SAMtools installation"
-
-# clean up by removing samtools directory
-cd ..
-rm -r "samtools-1.15.1"
-cd "$CDIR"
 
 ## all done -----------------------------------------------------
 mesg "Setup complete!"

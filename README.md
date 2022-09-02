@@ -23,7 +23,7 @@ cd virus-amplicon
 
 ### 2. Run `setup.sh` to install SAMtools, LoFreq, and make an index
 
-Create the alignment index from a reference sequence FASTA file. Most viruses have an official NCBI [RefSeq](https://www.ncbi.nlm.nih.gov/refseq/). This script will also check to see if you have pulled and installed SAMtools and LoFreq in your pipeline directory. 
+Create the alignment index from a reference sequence FASTA file. Most viruses have an official NCBI [RefSeq](https://www.ncbi.nlm.nih.gov/refseq/). This script will also check to see if you have pulled and installed SAMtools in your pipeline directory. 
 
 Run `./setup.sh` with the `-h` flag to view the full list of options.
 
@@ -43,7 +43,7 @@ arguments:
   -h show this message and exit
 ```
 
-Here is an example, where we download the [SARS-CoV-2 RefSeq](https://www.ncbi.nlm.nih.gov/nuccore/1798174254) and then run `setup.sh`. If this is your first time running `setup.sh` in the directory, it will install SAMtools and LoFreq in the directory as well!
+Here is an example, where we download the [SARS-CoV-2 RefSeq](https://www.ncbi.nlm.nih.gov/nuccore/1798174254) and then run `setup.sh`. If this is your first time running `setup.sh` in the directory, it will install SAMtools in the directory as well!
 
 ```
 # download the reference
