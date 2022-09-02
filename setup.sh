@@ -19,9 +19,11 @@ checkcmd () {
   fi
 }
 
-# default values and help message
+# pre-set variables
 BDIR="$(dirname "$0")/pipeline/bowtie"
 SDIR="$(dirname "$0")/pipeline/samtools"
+
+# help message
 HELP="usage: qsub -P PROJECT -N JOBNAME $0 -f FASTA -b BOWTIE
 
 arguments:
