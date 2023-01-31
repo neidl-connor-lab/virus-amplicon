@@ -20,15 +20,13 @@ checkcmd () {
 }
 
 # pre-set variables
-SAMTOOLS="pipeline/samtools/bin/samtools"
 LOFREQ="pipeline/lofreq/lofreq"
-
 # help message
 HELP="usage: qsub -P PROJECT -N JOBNAME $0 -p PRIMERS -i INDEX -f FASTA -o ODIR -s SAMPLE -x R1 [-y R2]
 Please submit the job from the pipeline directory!
 
 arguments:
-  -p primer BED file
+  -b primer BED file
   -i bowtie2 index path and prefix
   -f reference FASTA
   -o output directory
@@ -39,10 +37,10 @@ arguments:
 "
 
 # parsing arguments
-while getopts ":hp:i:f:o:s:x:y:" opt 
+while getopts ":hb:i:f:o:s:x:y:" opt 
 do 
   case ${opt} in 
-    p ) BED="${OPTARG}"
+    b ) BED="${OPTARG}"
       ;;
     i ) IDX="${OPTARG}"
       ;;
@@ -77,16 +75,24 @@ echo ""
 ## check inputs -------------------------------------------------
 mesg "STEP 0: CHECKING INPUTS"
 
-# double-check that samtools exists
-if [ ! -f "$SAMTOOLS" ]
+# if no bowtie2, load module
+if [ -z "$(bowtie2 --version 2> /dev/null)" ]
 then
-  err "SAMtools not installed. Please re-run setup.sh"
+  module load bowtie2
+  checkcmd "Loading bowtie2"
+fi
+
+# if no samtools, load module
+if [ -z "$(samtools version 2> /dev/null)" ]
+then
+  module load samtools
+  checkcmd "Loading samtools"
 fi
 
 # double-check that lofreq exists
-if [ ! -f "$LOFREQ" ]
+if [ -z "$($LOFREQ version 2> /dev/null)" ]
 then
-  err "LoFreq missing from pipeline directory."
+  err "LoFreq error: $LOFREQ"
 fi
 
 # BED file
@@ -172,9 +178,6 @@ echo ""
 ## alignment ----------------------------------------------------
 mesg "STEP 1: ALIGN TO GENOME"
 
-# load bowtie2 
-module load bowtie2
-
 # build command based on whether has paired reads
 if [ -z "$R2" ] # unpaired
 then
@@ -189,7 +192,7 @@ eval "$CMD"
 checkcmd "Alignment"
 
 # compress SAM to BAM
-CMD="$SAMTOOLS view --threads 4 -b -h '$VAR.sam' > '$VAR-raw.bam'"
+CMD="samtools view --threads 4 -b -h '$VAR.sam' > '$VAR-raw.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Compression"
@@ -200,7 +203,7 @@ echo ""
 mesg "STEP 2: CLIP PRIMERS"
 
 # soft-clipping primers with samtools ampliconclip
-CMD="$SAMTOOLS ampliconclip --threads 4 -b '$BED' '$VAR-raw.bam' -o '$VAR-clipped.bam'"
+CMD="samtools ampliconclip --threads 4 -b '$BED' '$VAR-raw.bam' -o '$VAR-clipped.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Primer clipping"
@@ -211,7 +214,7 @@ echo ""
 mesg "STEP 3: PROCESS BAM"
 
 # sort BAM
-CMD="$SAMTOOLS sort --threads 4 '$VAR-clipped.bam' > '$VAR-sorted.bam'"
+CMD="samtools sort --threads 4 '$VAR-clipped.bam' > '$VAR-sorted.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Sorting"
@@ -225,7 +228,7 @@ checkcmd "Indelqual"
 rm "$VAR-sorted.bam"
 
 # index final BAM
-CMD="$SAMTOOLS index '$VAR.bam'"
+CMD="samtools index '$VAR.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Indexing"
@@ -235,7 +238,7 @@ echo ""
 mesg "STEP 4: CALCULATE COVERAGE"
 
 # coverage with samtools depth
-CMD="$SAMTOOLS depth --threads 4 -a -H '$VAR.bam' > '$VAR.tsv'"
+CMD="samtools depth --threads 4 -a -H '$VAR.bam' > '$VAR.tsv'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Coverage"
@@ -245,7 +248,7 @@ echo ""
 mesg "STEP 5: ASSEMBLE CONSENSUS"
 
 # consensus with samtools
-CMD="$SAMTOOLS consensus --threads 4 --use-qual --min-depth 10 --call-fract 0.5 --output '$VAR-tmp.fa' '$VAR.bam'"
+CMD="samtools consensus --threads 4 --use-qual --min-depth 10 --call-fract 0.5 --output '$VAR-tmp.fa' '$VAR.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Consensus"
@@ -274,5 +277,5 @@ module list
 echo "LoFreq"
 $LOFREQ version
 echo ""
-$SAMTOOLS --version
+samtools --version
 echo "" 

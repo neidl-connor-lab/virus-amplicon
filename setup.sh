@@ -1,8 +1,7 @@
 #!/bin/bash -l
 
 # qsub options
-#$ -l h_rt=24:00:00
-#$ -l mem_total=252G
+#$ -l h_rt=6:00:00
 #$ -j y
 #$ -o log-$JOB_NAME.qlog
 
@@ -20,10 +19,8 @@ checkcmd () {
 }
 
 # pre-set variables
-BDIR="pipeline/bowtie"
-SDIR="pipeline/samtools"
-LDIR="pipeline/lofreq"
-
+BDIR="pipeline/indices"
+LOFREQ="pipeline/lofreq"
 # help message
 HELP="usage: qsub -P PROJECT -N JOBNAME $0 -f FASTA -b BOWTIE
 
@@ -59,7 +56,19 @@ echo "=========================================================="
 echo ""
 
 ## check inputs -------------------------------------------------
-mesg "STEP 0: CHECKING INPUTS"
+# if no bowtie2, load module
+if [ -z "$(bowtie2 --version 2> /dev/null)" ]
+then
+  module load bowtie2
+  checkcmd "Loading bowtie2"
+fi
+
+# if no samtools, load module
+if [ -z "$(samtools version 2> /dev/null)" ]
+then
+  module load samtools
+  checkcmd "Loading samtools"
+fi
 
 # check reference FASTA
 if [ -z "$FASTA" ]
@@ -84,12 +93,28 @@ fi
 mesg "Done checking inputs!"
 echo ""
 
-## make index ---------------------------------------------------
-mesg "STEP 1: CREATE INDEX"
-mesg "Creating Bowtie2 index: $BDIR/$BOWTIE"
+## unpack LoFreq if necessary -----------------------------------
+# check for lofreq tarball
+if [ -f "$LOFREQ.tar.bz2" ]
+then 
+  mesg "LoFreq tarball detected. Expanding."
+  tar -xf "$LOFREQ.tar.bz2" -C "$(dirname $LOFREQ)"
+  checkcmd "LoFreq decompression"
+  # remove tarball
+  rm "$LOFREQ.tar.bz2"
+fi
 
-# load bowtie2
-module load bowtie2
+# check that the lofreq executable works
+if [ ! -z "$($LOFREQ/lofreq version 2> /dev/null)" ]
+then
+  mesg "LoFreq is ready to go!"
+else
+  err "Problem with LoFreq: $LOFREQ"
+fi
+echo ""
+
+## make index ---------------------------------------------------
+mesg "Creating Bowtie2 index: $BDIR/$BOWTIE"
 
 # create directory for bowtie2 if it doesn't already exist
 if [ ! -d "$BDIR" ]
@@ -103,41 +128,6 @@ mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Bowtie2 index"
 echo ""
-
-## install samtools ---------------------------------------------
-# create directory for samtools if it doesn't already exist
-if [ ! -d "$SDIR" ]
-then
-  mkdir -p "$SDIR"
-fi
-
-# quick check for samtools; if installed skip this step
-if [ ! -f "$SDIR/bin/samtools" ]
-then
-  # only print message once we know we need to install samtools from source
-  mesg "STEP 2: INSTALL SAMTOOLS"
-  mesg "Installing SAMtools v1.15.1 from source"
-
-  # get the absolute path for installation
-  PFIX="$(pwd)/$SDIR"
-
-  # pull tarball, expand, and enter directory
-  wget --quiet "https://github.com/samtools/samtools/releases/download/1.15.1/samtools-1.15.1.tar.bz2"
-  tar -xf "samtools-1.15.1.tar.bz2"
-  rm "samtools-1.15.1.tar.bz2"
-  cd "samtools-1.15.1"
-
-  # configure and install
-  ./configure --quiet --prefix "$PFIX"
-  make --quiet
-  make install --quiet
-  checkcmd "SAMtools installation"
-
-  # clean up by removing samtools directory
-  cd ..
-  rm -r "samtools-1.15.1"
-  cd "$CDIR"
-fi
 
 ## all done -----------------------------------------------------
 mesg "Setup complete!"
