@@ -3,7 +3,7 @@ v1.0 by Jackie T.
 
 ## Requirements
 
-Computing cluster with a [module](https://www.bu.edu/tech/support/research/software-and-programming/software-and-applications/modules/) for [Bowtie2](https://doi.org/10.1038%2Fnmeth.1923) and [SAMtools](http://www.htslib.org/download/).
+Computing cluster access to [Bowtie2](https://doi.org/10.1038%2Fnmeth.1923) and [SAMtools](http://www.htslib.org/download/). Either a local installation or with a [module](https://www.bu.edu/tech/support/research/software-and-programming/software-and-applications/modules/) works!
 
 | Package   | Version |
 | :-------- | :------ |
@@ -49,7 +49,7 @@ arguments:
   -h show this message and exit
 ```
 
-Here is an example where we download the [SARS-CoV-2 RefSeq](https://www.ncbi.nlm.nih.gov/nuccore/1798174254) and then run `setup.sh`. If this is your first time running `setup.sh` in the directory, it will install SAMtools in the directory as well!
+Here is an example where we download the [SARS-CoV-2 RefSeq](https://www.ncbi.nlm.nih.gov/nuccore/1798174254) and then run `setup.sh`. If this is your first time running `setup.sh` in the directory, it will unpack LoFreq as well!
 
 ```
 # download and decompress the reference
@@ -77,7 +77,7 @@ If you would like to make another index, just run `setup.sh` again!
 
 ### 3. Run pipeline
 
-> You _must_ run this script from the directory where the `pipeline/` directory was created in step 2.
+> You _must_ run this script from cloned project directory used in step 2.
 
 View pipeline options and required arguments by running `pipeline.sh` with the `-h` flag.
 
@@ -114,7 +114,7 @@ arguments:
   -h print this message and exit
 ```
 
-Here is an example where we're using the index we created in step 2. Paired FASTQ input files are in `input-files/`, and output files should go to `output-files/`. We're sThe example job is named `test-job`, and the project allocation used is `test-project`. The job output will be written to a file named `log-test-job.qlog`.
+Here is an example where we're using the index we created in step 2. The job output will be written to a file named `log-test-job.qlog`. Fill in your own project allocation, BED file, and FASTQ files!
 
 ```
 qsub -P test-project \
