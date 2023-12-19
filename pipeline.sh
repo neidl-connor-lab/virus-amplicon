@@ -22,7 +22,7 @@ checkcmd () {
 # pre-set variables
 LOFREQ="pipeline/lofreq/lofreq"
 # help message
-HELP="usage: qsub -P PROJECT -N JOBNAME $0 -p PRIMERS -i INDEX -f FASTA -o ODIR -s SAMPLE -x R1 [-y R2]
+HELP="usage: qsub -P PROJECT -N JOBNAME $0 -b PRIMERS -i INDEX -f FASTA -o ODIR -s SAMPLE -x R1 [-y R2]
 Please submit the job from the pipeline directory!
 
 arguments:
