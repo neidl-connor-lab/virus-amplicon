@@ -5,7 +5,7 @@
 #$ -j y
 #$ -o log-$JOB_NAME.qlog
 
-## setup --------------------------------------------------------
+## setup -----------------------------------------------------------------------
 # functions
 mesg () { echo -e "[MSG] $@"; }
 err () { echo -e "[ERR] $@"; exit 1; }
@@ -19,14 +19,13 @@ checkcmd () {
 }
 
 # pre-set variables
-BDIR="pipeline/indices"
 LOFREQ="pipeline/lofreq"
 # help message
 HELP="usage: qsub -P PROJECT -N JOBNAME $0 -f FASTA -b BOWTIE
 
 arguments:
   -f virus genome FASTA file
-  -b bowtie2 index name
+  -b bowtie2 index path and prefix
   -h show this message and exit"
 
 # parsing arguments
@@ -45,7 +44,7 @@ do
 done
 shift $((OPTIND -1))
 
-## print job info for output log --------------------------------
+## print job info for output log -----------------------------------------------
 echo "=========================================================="
 echo "Start date: $(date)"
 echo "Running on node: $(hostname)"
@@ -55,20 +54,15 @@ echo "Job ID : $JOB_ID"
 echo "=========================================================="
 echo ""
 
-## check inputs -------------------------------------------------
-# if no bowtie2, load module
-if [ -z "$(bowtie2 --version 2> /dev/null)" ]
-then
-  module load bowtie2
-  checkcmd "Loading bowtie2"
-fi
+## check inputs ----------------------------------------------------------------
+# load bowtie2
+module load bowtie2/2.4.2
+checkcmd "Loading bowtie2" 
 
-# if no samtools, load module
-if [ -z "$(samtools version 2> /dev/null)" ]
-then
-  module load samtools
-  checkcmd "Loading samtools"
-fi
+# load samtools module 
+module load htslib/1.18
+module load samtools/1.18
+checkcmd "Loading samtools"
 
 # check reference FASTA
 if [ -z "$FASTA" ]
@@ -89,11 +83,18 @@ else
   mesg "Bowtie2 index prefix: $BOWTIE"
 fi
 
+# make bowtie index output directory if necessary
+if [ ! -d "$(dirname $BOWTIE)" ]
+then
+  mesg "Creating bowtie2 index directory: $(dirname $BOWTIE)"
+  mkdir -p "$(dirname $BOWTIE)"
+fi
+
 # done checking inputs!
 mesg "Done checking inputs!"
 echo ""
 
-## unpack LoFreq if necessary -----------------------------------
+## unpack LoFreq if necessary --------------------------------------------------
 # check for lofreq tarball
 if [ -f "$LOFREQ.tar.bz2" ]
 then 
@@ -113,22 +114,16 @@ else
 fi
 echo ""
 
-## make index ---------------------------------------------------
-mesg "Creating Bowtie2 index: $BDIR/$BOWTIE"
-
-# create directory for bowtie2 if it doesn't already exist
-if [ ! -d "$BDIR" ]
-then
-  mkdir -p "$BDIR"
-fi
+## make index ------------------------------------------------------------------
+mesg "Creating Bowtie2 index: $BOWTIE"
 
 # build command and execute
-CMD="bowtie2-build --quiet '$FASTA' '$BDIR/$BOWTIE'"
+CMD="bowtie2-build --quiet '$FASTA' '$BOWTIE'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Bowtie2 index"
 echo ""
 
-## all done -----------------------------------------------------
+## all done --------------------------------------------------------------------
 mesg "Setup complete!"
 module list
