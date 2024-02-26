@@ -6,7 +6,7 @@
 #$ -j y
 #$ -o log-$JOB_NAME.qlog
 
-## setup --------------------------------------------------------
+## setup -----------------------------------------------------------------------
 # functions
 mesg () { echo -e "[MSG] $@"; }
 err () { echo -e "[ERR] $@"; exit 1; }
@@ -21,8 +21,10 @@ checkcmd () {
 
 # pre-set variables
 LOFREQ="pipeline/lofreq/lofreq"
+FORMAT="pipeline/format.r"
+MINCOV="10"
 # help message
-HELP="usage: qsub -P PROJECT -N JOBNAME $0 -b PRIMERS -i INDEX -f FASTA -o ODIR -s SAMPLE -x R1 [-y R2]
+HELP="usage: qsub -P PROJECT -N JOBNAME $0 -b PRIMERS -i INDEX -f FASTA -o ODIR -s SAMPLE -x R1 [-y R2] [-t THLD]
 Please submit the job from the pipeline directory!
 
 arguments:
@@ -33,11 +35,12 @@ arguments:
   -s sample ID
   -x FASTQ file; R1 file if paired reads
   -y [OPTIONAL] R2 FASTQ file if paired reads
+  -t [OPTIONAL] minimum aligned read depth (default: $MINCOV)
   -h print this message and exit
 "
 
 # parsing arguments
-while getopts ":hb:i:f:o:s:x:y:" opt 
+while getopts ":hb:i:f:o:s:x:y:t:" opt 
 do 
   case ${opt} in 
     b ) BED="${OPTARG}"
@@ -48,11 +51,13 @@ do
       ;;
     o ) ODIR="${OPTARG}"
       ;;
-    s ) ID="${OPTARG}"
+    s ) SAMPLE="${OPTARG}"
       ;;
     x ) R1="${OPTARG}"
       ;;
     y ) R2="${OPTARG}"
+      ;;
+    t ) MINCOV="${OPTARG}"
       ;;
     h ) echo "$HELP" && exit 0
       ;;
@@ -62,7 +67,7 @@ do
 done
 shift $((OPTIND -1))
 
-## print job info for output log --------------------------------
+## print job info for output log -----------------------------------------------
 echo "=========================================================="
 echo "Start date: $(date)"
 echo "Running on node: $(hostname)"
@@ -72,27 +77,32 @@ echo "Job ID : $JOB_ID"
 echo "=========================================================="
 echo ""
 
-## check inputs -------------------------------------------------
+## check inputs ----------------------------------------------------------------
 mesg "STEP 0: CHECKING INPUTS"
 
-# if no bowtie2, load module
-if [ -z "$(bowtie2 --version 2> /dev/null)" ]
-then
-  module load bowtie2
-  checkcmd "Loading bowtie2"
-fi
+# load bowtie2 module
+module load bowtie2/2.4.2
+checkcmd "Loading bowtie2"
 
-# if no samtools, load module
-if [ -z "$(samtools version 2> /dev/null)" ]
-then
-  module load samtools
-  checkcmd "Loading samtools"
-fi
+# load samtools module 
+module load htslib/1.18
+module load samtools/1.18
+checkcmd "Loading samtools"
+
+# load R
+module load R/4.0.2
+checkcmd "Loading R"
 
 # double-check that lofreq exists
 if [ -z "$($LOFREQ version 2> /dev/null)" ]
 then
   err "LoFreq error: $LOFREQ"
+fi
+
+# double-check the formatting script exists
+if [ ! -f "$FORMAT" ]
+then 
+  err "VCF formatting script not detected: $FORMAT"
 fi
 
 # BED file
@@ -140,12 +150,17 @@ else
   mkdir -p "$ODIR"
 fi
 
-# sample ID
-if [ -z "$ID" ]
+# check sample-specific output directory
+VAR="$ODIR/$SAMPLE"
+if [ -z "$SAMPLE" ]
 then
   err "No sample ID provided"
+elif [ ! -d "$VAR" ]
+then
+  mesg "Outputting files to: $VAR"
+  mkdir -p "$VAR"
 else
-  mesg "Using sample ID: $ID"
+  mesg "Outputting files to: $VAR"
 fi
 
 # R1/R0 FASTQ file
@@ -170,20 +185,27 @@ else
   err "Invalid second FASTQ file: $R2"
 fi
 
+# minimum coverage
+if [ -z "$MINCOV" ]
+then
+  err "No minimum coverage specified"
+else
+  mesg "Minimum aligned read depth: $MINCOV"
+fi
+
 # done checking inputs!
 mesg "Done checking inputs!"
-VAR="$ODIR/$ID"
 echo ""
 
-## alignment ----------------------------------------------------
-mesg "STEP 1: ALIGN TO GENOME"
+## alignment -------------------------------------------------------------------
+mesg "STEP 1: ALIGN TO VIRAL GENOME"
 
 # build command based on whether has paired reads
 if [ -z "$R2" ] # unpaired
 then
-  CMD="bowtie2 --threads 4 -x '$IDX' -U '$R1' > '$VAR.sam'"
+  CMD="bowtie2 --threads 4 -x '$IDX' -U '$R1' 1> '$VAR/alignment.sam' 2> '$VAR/bowtie2.log'"
 else # paired
-  CMD="bowtie2 --threads 4 -x '$IDX' -1 '$R1' -2 '$R2' > '$VAR.sam'"
+  CMD="bowtie2 --threads 4 -x '$IDX' -1 '$R1' -2 '$R2' 1> '$VAR/alignment.sam' 2> '$VAR/bowtie2.log'"
 fi
 
 # run alignment
@@ -192,90 +214,95 @@ eval "$CMD"
 checkcmd "Alignment"
 
 # compress SAM to BAM
-CMD="samtools view --threads 4 -b -h '$VAR.sam' > '$VAR-raw.bam'"
+CMD="samtools view --threads 4 -b -h '$VAR/alignment.sam' > '$VAR/alignment-raw.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Compression"
-rm "$VAR.sam"
+rm "$VAR/alignment.sam"
 echo ""
 
-## soft-clip primers --------------------------------------------
-mesg "STEP 2: CLIP PRIMERS"
+## soft-clip primers -----------------------------------------------------------
+mesg "STEP 2: CLIP AMPLICON PRIMERS"
 
 # soft-clipping primers with samtools ampliconclip
-CMD="samtools ampliconclip --threads 4 -b '$BED' '$VAR-raw.bam' -o '$VAR-clipped.bam'"
+CMD="samtools ampliconclip --threads 4 --soft-clip -b '$BED' '$VAR/alignment-raw.bam' -o '$VAR/alignment-clipped.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Primer clipping"
-rm "$VAR-raw.bam"
+rm "$VAR/alignment-raw.bam"
 echo ""
 
-## process BAM --------------------------------------------------
+## process BAM -----------------------------------------------------------------
 mesg "STEP 3: PROCESS BAM"
 
 # sort BAM
-CMD="samtools sort --threads 4 '$VAR-clipped.bam' > '$VAR-sorted.bam'"
+CMD="samtools sort --threads 4 '$VAR/alignment-clipped.bam' > '$VAR/alignment-sorted.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Sorting"
-rm "$VAR-clipped.bam"
+rm "$VAR/alignment-clipped.bam"
 
 # score indels to get final BAM
-CMD="$LOFREQ indelqual --dindel --ref '$REFSEQ' '$VAR-sorted.bam' > '$VAR.bam'"
+CMD="$LOFREQ indelqual --dindel --ref '$REFSEQ' '$VAR/alignment-sorted.bam' > '$VAR/alignment.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Indelqual"
-rm "$VAR-sorted.bam"
+rm "$VAR/alignment-sorted.bam"
 
 # index final BAM
-CMD="samtools index '$VAR.bam'"
+CMD="samtools index '$VAR/alignment.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Indexing"
 echo ""
 
-## calculate coverage -------------------------------------------
+## calculate coverage ----------------------------------------------------------
 mesg "STEP 4: CALCULATE COVERAGE"
 
 # coverage with samtools depth
-CMD="samtools depth --threads 4 -a -H '$VAR.bam' > '$VAR.tsv'"
+CMD="samtools depth --threads 4 -a -H '$VAR/alignment.bam' > '$VAR/coverage.tsv'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Coverage"
 echo ""
 
-## assemble consensus -------------------------------------------
+## assemble consensus ----------------------------------------------------------
 mesg "STEP 5: ASSEMBLE CONSENSUS"
 
 # consensus with samtools
-CMD="samtools consensus --threads 4 --use-qual --min-depth 10 --call-fract 0.5 --output '$VAR-tmp.fa' '$VAR.bam'"
+CMD="samtools consensus --threads 4 --use-qual --min-depth $MINCOV --call-fract 0.5 --output '$VAR/consensus-tmp.fa' '$VAR/alignment.bam'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "Consensus"
 
 # update consensus header
 mesg "Updating consensus header"
-echo ">$ID" > "$VAR.fa"
-cat "$VAR-tmp.fa" | grep "^[^>]" >> "$VAR.fa"
-rm "$VAR-tmp.fa"
+echo ">$SAMPLE" > "$VAR/consensus.fa"
+cat "$VAR/consensus-tmp.fa" | grep "^[^>]" >> "$VAR/consensus.fa"
+rm "$VAR/consensus-tmp.fa"
 echo ""
 
-## quantify SNVs ------------------------------------------------
+## quantify SNVs ---------------------------------------------------------------
 mesg "STEP 6: QUANTIFY SNVs"
 
 # run lofreq
 # keeping mapping quality parameters same between samtools and LoFreq
-CMD="$LOFREQ call-parallel --pp-threads 4 --call-indels --min-cov 10 --ref '$REFSEQ' '$VAR.bam' > '$VAR.vcf'"
+CMD="$LOFREQ call-parallel --pp-threads 4 --call-indels --min-cov $MINCOV --ref '$REFSEQ' '$VAR/alignment.bam' > '$VAR/snvs.vcf'"
 mesg "CMD: $CMD"
 eval "$CMD"
 checkcmd "LoFreq"
 echo ""
 
-## package version ----------------------------------------------
+# format VCF
+CMD="Rscript $FORMAT --vcf '$VAR/snvs.vcf' --ofile '$VAR/snvs.csv'"
+mesg "CMD: $CMD"
+eval "$CMD"
+checkcmd "SNV formatting"
+echo ""
+
+## package version -------------------------------------------------------------
 mesg "Pipeline complete! Printing package versions..."
 module list
 echo "LoFreq"
 $LOFREQ version
 echo ""
-samtools --version
-echo "" 
