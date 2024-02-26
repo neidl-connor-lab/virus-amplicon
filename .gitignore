@@ -1,4 +1,4 @@
 pipeline/lofreq/
 pipeline/indices/
-testdata/
+testdata*
 data/
