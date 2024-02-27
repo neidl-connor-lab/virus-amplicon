@@ -1,5 +1,5 @@
 # virus-amplicon
-v1.0 by Jackie T.
+v2.0 by Jackie T.
 
 ## Requirements
 
