@@ -1,5 +1,5 @@
 # virus-amplicon
-v2.0 by Jackie T.
+v2.1 by Jackie T.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ cd virus-amplicon
 
 ### 2. Run `setup.sh` to set up LoFreq and make an index
 
-Create an alignment index from a reference sequence FASTA file, and write it to `pipeline/indices/`. Most viruses have an official NCBI [RefSeq](https://www.ncbi.nlm.nih.gov/refseq/). This script will also set up LoFreq in your `pipeline/` directory. 
+Create an alignment index from a reference sequence FASTA file, and write it to `pipeline/indices/`. Most viruses have an official NCBI [RefSeq](https://www.ncbi.nlm.nih.gov/refseq/). This script will also set up LoFreq in your `pipeline/` directory, and install the necessary R libraries (`argparse` and `tidyverse`). 
 
 Run `setup.sh` with the `-h` flag to view the full list of options.
 
